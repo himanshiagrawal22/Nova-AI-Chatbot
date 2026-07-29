@@ -19,3 +19,7 @@ chat_*.txt
 # OS Files
 .DS_Store
 Thumbs.db
+
+history.json
+long_term_memory.json
+chat_*.txt
