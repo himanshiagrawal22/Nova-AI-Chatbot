@@ -1,4 +1,5 @@
 from datetime import datetime
+import os
 
 from memory import (
     load_history,
@@ -7,144 +8,251 @@ from memory import (
     save_long_term_memory
 )
 
-from chatbot import build_prompt, stream_gemini
-from memory_manager import update_long_term_memory
+from chatbot import (
+    build_prompt,
+    stream_gemini
+)
 
-# -----------------------------
-# Load previous chat history
-# -----------------------------
+from memory_manager import (
+    update_long_term_memory
+)
+
+from rag.rag_pipeline import (
+    build_rag,
+    ask_pdf
+)
+
+# ----------------------------------------
+# Load Memory
+# ----------------------------------------
 history = load_history()
-
-# -----------------------------
-# Load long-term memory
-# -----------------------------
 long_term_memory = load_long_term_memory()
 
+# ----------------------------------------
+# Loaded Document
+# ----------------------------------------
+rag_index = None
+rag_chunks = None
+loaded_document = None
+
 print("=" * 50)
-print("🤖 Nova AI Chatbot")
+print("🤖 Nova AI")
 print("Type 'exit' to quit.")
-print("Type '/help' for available commands.")
+print("Type '/help' for commands.")
 print("=" * 50)
 
 while True:
 
-    user_input = input("\nYou: ")
+    user_input = input("\nYou: ").strip()
+    lower = user_input.lower()
 
-    # -----------------------------
-    # Exit chatbot
-    # -----------------------------
-    if user_input.lower() == "exit":
+    # ----------------------------------------
+    # Exit
+    # ----------------------------------------
+    if lower == "exit":
         print("\n👋 Goodbye!")
         break
 
-    # -----------------------------
-    # /help Command
-    # -----------------------------
-    if user_input == "/help":
-        print("""
-📖 Available Commands
+    # ----------------------------------------
+    # Help
+    # ----------------------------------------
+    if lower == "/help":
 
-/help      Show all commands
-/clear     Clear chat history
-/history   Show previous conversation
-/save      Save conversation
+        print("""
+Available Commands
+
+/help
+/history
+/clear
+/save
+exit
+
+Load PDF naturally:
+
+resume.pdf
+notes.pdf
+Open resume.pdf
+Load notes.pdf
+
+Close document
 """)
         continue
 
-    # -----------------------------
-    # /clear Command
-    # -----------------------------
-    if user_input == "/clear":
+    # ----------------------------------------
+    # Detect PDF Automatically
+    # ----------------------------------------
+    pdf_name = None
+
+    for word in user_input.split():
+
+        if word.lower().endswith(".pdf"):
+            pdf_name = word
+            break
+
+    if pdf_name:
+
+        try:
+
+            pdf_path = os.path.join(
+                "data",
+                pdf_name
+            )
+
+            rag_index, rag_chunks = build_rag(pdf_path)
+
+            loaded_document = pdf_name
+
+            print(f"\n📄 '{pdf_name}' loaded successfully.")
+            print("You can now ask questions about this document.")
+
+        except Exception as e:
+
+            print(f"\n❌ {e}")
+
+        continue
+
+    # ----------------------------------------
+    # Close Document
+    # ----------------------------------------
+    if lower in [
+        "close document",
+        "close pdf",
+        "remove document",
+        "unload pdf"
+    ]:
+
+        rag_index = None
+        rag_chunks = None
+        loaded_document = None
+
+        print("\n📄 Document closed.")
+
+        continue
+
+    # ----------------------------------------
+    # Clear History
+    # ----------------------------------------
+    if lower == "/clear":
+
         history.clear()
         save_history(history)
 
-        print("✅ Chat history cleared.")
+        print("\n✅ Chat history cleared.")
+
         continue
 
-    # -----------------------------
-    # /history Command
-    # -----------------------------
-    if user_input == "/history":
+    # ----------------------------------------
+    # Show History
+    # ----------------------------------------
+    if lower == "/history":
 
         print("\n📜 Chat History\n")
 
         if not history:
+
             print("No conversation found.")
+
         else:
+
             for message in history:
-                print(f"{message['role'].capitalize()}: {message['content']}")
+
+                print(
+                    f"{message['role'].capitalize()}: "
+                    f"{message['content']}"
+                )
 
         print("\n" + "-" * 60)
+
         continue
 
-    # -----------------------------
-    # /save Command
-    # -----------------------------
-    if user_input == "/save":
+    # ----------------------------------------
+    # Save Conversation
+    # ----------------------------------------
+    if lower == "/save":
 
-        timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+        timestamp = datetime.now().strftime(
+            "%Y-%m-%d_%H-%M-%S"
+        )
+
         filename = f"chat_{timestamp}.txt"
 
-        with open(filename, "w", encoding="utf-8") as file:
+        with open(
+            filename,
+            "w",
+            encoding="utf-8"
+        ) as file:
 
-            file.write("Nova AI Chatbot Conversation\n")
+            file.write("Nova AI Conversation\n")
             file.write("=" * 40 + "\n\n")
 
             if not history:
+
                 file.write("No conversation available.\n")
+
             else:
+
                 for message in history:
+
                     file.write(
-                        f"{message['role'].capitalize()}: {message['content']}\n\n"
+                        f"{message['role'].capitalize()}: "
+                        f"{message['content']}\n\n"
                     )
 
-        print(f"✅ Conversation saved as '{filename}'")
-        continue
+        print(f"\n✅ Conversation saved as '{filename}'")
 
-    # -----------------------------
+        continue
+        # ----------------------------------------
     # Update Long-Term Memory
-    # -----------------------------
+    # ----------------------------------------
     long_term_memory = update_long_term_memory(
         user_input,
         long_term_memory
     )
 
-    save_long_term_memory(long_term_memory)
+    save_long_term_memory(
+        long_term_memory
+    )
 
-    # -----------------------------
-    # Save user message
-    # -----------------------------
+    # ----------------------------------------
+    # Save User Message
+    # ----------------------------------------
     history.append({
         "role": "user",
         "content": user_input
     })
 
-    # -----------------------------
-    # Build Prompt
-    # -----------------------------
-    prompt = build_prompt(
-        history,
-        long_term_memory
-    )
-
+    # ----------------------------------------
+    # Generate Response
+    # ----------------------------------------
     print("\nNova: ", end="")
 
-    # -----------------------------
-    # Get AI Response
-    # -----------------------------
-    reply = stream_gemini(prompt)
+    # If a document is loaded, use RAG
+    if rag_index is not None:
 
-    # -----------------------------
+        reply = ask_pdf(
+            user_input,
+            rag_index,
+            rag_chunks
+        )
+
+    # Otherwise use normal Gemini
+    else:
+
+        prompt = build_prompt(
+            history,
+            long_term_memory
+        )
+
+        reply = stream_gemini(prompt)
+
+    # ----------------------------------------
     # Save Assistant Reply
-    # -----------------------------
+    # ----------------------------------------
     history.append({
         "role": "assistant",
         "content": reply
     })
 
-    # -----------------------------
-    # Save Chat History
-    # -----------------------------
     save_history(history)
 
     print("\n" + "-" * 60)
