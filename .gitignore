@@ -6,7 +6,6 @@ __pycache__/
 
 # Virtual Environment
 venv/
-.env/
 
 # Environment Variables
 .env
@@ -14,13 +13,9 @@ venv/
 # VS Code
 .vscode/
 
-# Chat History
-history.json
-long_term_memory.json
+# Saved chat exports
+chat_*.txt
 
 # OS Files
 .DS_Store
 Thumbs.db
-
-# Saved chats
-chat_*.txt

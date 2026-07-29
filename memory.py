@@ -1,4 +1,5 @@
 import json
+import os
 
 HISTORY_FILE = "history.json"
 LONG_TERM_MEMORY_FILE = "long_term_memory.json"
@@ -8,10 +9,17 @@ LONG_TERM_MEMORY_FILE = "long_term_memory.json"
 # Chat History
 # -----------------------------
 def load_history():
+
+    # Create file if it doesn't exist
+    if not os.path.exists(HISTORY_FILE):
+        save_history([])
+
     try:
         with open(HISTORY_FILE, "r") as file:
             return json.load(file)
-    except (FileNotFoundError, json.JSONDecodeError):
+
+    except json.JSONDecodeError:
+        save_history([])
         return []
 
 
@@ -24,17 +32,26 @@ def save_history(history):
 # Long-Term Memory
 # -----------------------------
 def load_long_term_memory():
+
+    # Create file if it doesn't exist
+    if not os.path.exists(LONG_TERM_MEMORY_FILE):
+        save_long_term_memory({"facts": []})
+
     try:
         with open(LONG_TERM_MEMORY_FILE, "r") as file:
             memory = json.load(file)
 
             # Ensure correct format
-            if "facts" not in memory:
+            if not isinstance(memory, dict):
                 memory = {"facts": []}
+
+            if "facts" not in memory:
+                memory["facts"] = []
 
             return memory
 
-    except (FileNotFoundError, json.JSONDecodeError):
+    except json.JSONDecodeError:
+        save_long_term_memory({"facts": []})
         return {"facts": []}
 
 
