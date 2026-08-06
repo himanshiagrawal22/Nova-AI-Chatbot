@@ -1,0 +1,17 @@
+venv/
+__pycache__/
+*.pyc
+
+.env
+
+history.json
+long_term_memory.json
+
+faiss_index*
+*.pkl
+
+node_modules/
+dist/
+
+.vscode/
+data/*.pdf

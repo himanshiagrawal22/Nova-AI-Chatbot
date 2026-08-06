@@ -5,31 +5,39 @@ MAX_HISTORY = 10
 
 
 def build_prompt(history, long_term_memory):
-    """
-    Build the prompt sent to Gemini.
-    Includes:
-    1. System Prompt
-    2. Long-Term Memory
-    3. Recent Chat History
-    """
-
     prompt = f"{SYSTEM_PROMPT}\n\n"
 
     # -----------------------------
     # Long-Term Memory
     # -----------------------------
-    facts = long_term_memory.get("facts", [])
+    prompt += "Known information about the user:\n"
 
-    if facts:
-        prompt += "Known facts about the user:\n"
+    profile = long_term_memory.get("profile", {})
 
-        for fact in facts:
-            prompt += f"- {fact}\n"
+    for key, value in profile.items():
+        if value:
+            prompt += f"{key.capitalize()}: {value}\n"
 
-        prompt += "\n"
+    for category in [
+        "projects",
+        "skills",
+        "preferences",
+        "goals",
+        "notes",
+    ]:
+
+        items = long_term_memory.get(category, [])
+
+        if items:
+            prompt += f"\n{category.capitalize()}:\n"
+
+            for item in items:
+                prompt += f"- {item}\n"
+
+    prompt += "\n"
 
     # -----------------------------
-    # Recent Chat History
+    # Recent Conversation
     # -----------------------------
     prompt += "Conversation:\n"
 
@@ -43,28 +51,18 @@ def build_prompt(history, long_term_memory):
 
     prompt += "Assistant:"
 
-    # Uncomment while debugging
-    # print("\n========== FINAL PROMPT ==========")
-    # print(prompt)
-    # print("==================================\n")
-
     return prompt
 
 
 def stream_gemini(prompt):
-    """
-    Stream Gemini response token by token.
-    """
-
     stream = client.models.generate_content_stream(
         model=MODEL_NAME,
-        contents=prompt
+        contents=prompt,
     )
 
     full_response = ""
 
     for chunk in stream:
-
         if chunk.text:
             print(chunk.text, end="", flush=True)
             full_response += chunk.text
@@ -72,3 +70,14 @@ def stream_gemini(prompt):
     print()
 
     return full_response
+
+
+def stream_gemini_generator(prompt):
+    stream = client.models.generate_content_stream(
+        model=MODEL_NAME,
+        contents=prompt,
+    )
+
+    for chunk in stream:
+        if chunk.text:
+            yield chunk.text
