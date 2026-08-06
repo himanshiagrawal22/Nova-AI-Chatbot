@@ -268,3 +268,87 @@ h1 {
 .copy-btn:active {
     transform: scale(0.95);
 }
+
+.upload-box{
+    display:flex;
+    justify-content:center;
+    margin-bottom:15px;
+}
+
+.upload-label{
+
+    width:100%;
+    max-width:700px;
+
+    padding:18px;
+
+    border:2px dashed #4c7dff;
+
+    border-radius:12px;
+
+    text-align:center;
+
+    cursor:pointer;
+
+    color:white;
+
+    background:#182338;
+
+    transition:.3s;
+
+}
+
+.upload-label:hover{
+
+    background:#22304d;
+
+}
+
+.upload-box{
+    margin:20px 0;
+}
+
+.upload-card{
+
+    display:flex;
+    align-items:center;
+
+    gap:18px;
+
+    padding:18px;
+
+    border:2px dashed #4c7dff;
+
+    border-radius:16px;
+
+    cursor:pointer;
+
+    transition:.3s;
+
+    background:#182338;
+}
+
+.upload-card:hover{
+
+    border-color:#6f95ff;
+
+    background:#1f2b44;
+}
+
+.upload-icon{
+
+    font-size:42px;
+}
+
+.upload-text h3{
+
+    margin:0;
+    color:white;
+}
+
+.upload-text p{
+
+    margin-top:6px;
+
+    color:#a7b4d0;
+}

@@ -9,12 +9,17 @@ import { oneDark } from "react-syntax-highlighter/dist/esm/styles/prism";
 
 import { FiCopy, FiCheck } from "react-icons/fi";
 
-import { streamChat } from "./services/api";
+import {
+  streamChat,
+  uploadPDF,
+} from "./services/api";
 
 function CopyButton({ code }) {
+
   const [copied, setCopied] = useState(false);
 
   const copyCode = async () => {
+
     await navigator.clipboard.writeText(code);
 
     setCopied(true);
@@ -22,9 +27,11 @@ function CopyButton({ code }) {
     setTimeout(() => {
       setCopied(false);
     }, 2000);
+
   };
 
   return (
+
     <button
       className="copy-btn"
       onClick={copyCode}
@@ -32,7 +39,9 @@ function CopyButton({ code }) {
     >
       {copied ? <FiCheck /> : <FiCopy />}
     </button>
+
   );
+
 }
 
 function App() {
@@ -41,13 +50,84 @@ function App() {
   const [messages, setMessages] = useState([]);
   const [loading, setLoading] = useState(false);
 
+  const [uploading, setUploading] = useState(false);
+  const [uploadedPDF, setUploadedPDF] = useState("");
+
   const messagesEndRef = useRef(null);
+
+  // ------------------------
+  // Upload PDF
+  // ------------------------
+
+  const handlePDFUpload = async (file) => {
+
+    if (!file) return;
+
+    if (file.type !== "application/pdf") {
+
+      alert("Please upload a PDF.");
+
+      return;
+
+    }
+
+    try {
+
+      setUploading(true);
+
+      const result = await uploadPDF(file);
+
+      if (result.success) {
+
+        setUploadedPDF(result.filename);
+
+        setMessages(prev => [
+
+          ...prev,
+
+          {
+            sender: "bot",
+            text:
+              `📄 **${result.filename}** uploaded successfully.\n\nYou can now ask questions about this document.`,
+          }
+
+        ]);
+
+      }
+
+      else {
+
+        alert(result.message);
+
+      }
+
+    }
+
+    catch (err) {
+
+      console.error(err);
+
+      alert("Upload failed.");
+
+    }
+
+    finally {
+
+      setUploading(false);
+
+    }
+
+  };
+
+  // ------------------------
+  // Send Message
+  // ------------------------
 
   const sendMessage = async () => {
 
     if (loading) return;
 
-    if (message.trim() === "") return;
+    if (!message.trim()) return;
 
     const currentMessage = message;
 
@@ -55,30 +135,38 @@ function App() {
 
     setMessage("");
 
-    // Add user message + empty bot message
-    setMessages((prev) => [
+    setMessages(prev => [
+
       ...prev,
+
       {
         sender: "user",
         text: currentMessage,
       },
+
       {
         sender: "bot",
         text: "",
-      },
+      }
+
     ]);
 
     try {
 
       await streamChat(currentMessage, (chunk) => {
 
-        setMessages((prev) => {
+        setMessages(prev => {
 
           const updated = [...prev];
 
           updated[updated.length - 1] = {
+
             ...updated[updated.length - 1],
-            text: updated[updated.length - 1].text + chunk,
+
+            text:
+
+              updated[updated.length - 1].text + chunk,
+
           };
 
           return updated;
@@ -87,24 +175,31 @@ function App() {
 
       });
 
-    } catch (error) {
+    }
+
+    catch (error) {
 
       console.error(error);
 
-      setMessages((prev) => {
+      setMessages(prev => {
 
         const updated = [...prev];
 
         updated[updated.length - 1] = {
+
           sender: "bot",
-          text: "❌ Something went wrong.",
+
+          text: "❌ Something went wrong."
+
         };
 
         return updated;
 
       });
 
-    } finally {
+    }
+
+    finally {
 
       setLoading(false);
 
@@ -115,121 +210,261 @@ function App() {
   useEffect(() => {
 
     messagesEndRef.current?.scrollIntoView({
+
       behavior: "smooth",
+
     });
 
   }, [messages]);
 
-    return (
-    <div className="app">
+  return (
 
-      <h1>Nova AI</h1>
+  <div className="app">
 
-      <div className="chat-box">
+    <h1>Nova AI</h1>
 
-        {messages.length === 0 ? (
+    {/* ---------------------- */}
+    {/* PDF Upload */}
+    {/* ---------------------- */}
 
-          <div className="message bot">
-            Hello! I'm Nova. 👋
-          </div>
+    <div className="upload-box">
 
-        ) : (
+      <input
+        type="file"
+        accept=".pdf"
+        id="pdfUpload"
+        hidden
+        onChange={(e) => {
 
-          messages.map((msg, index) => (
+          handlePDFUpload(e.target.files[0]);
 
-            <div
-              key={index}
-              className={`message ${msg.sender}`}
-            >
+          e.target.value = "";
 
-              <ReactMarkdown
-                remarkPlugins={[remarkGfm]}
-                components={{
-                  code({ inline, className, children, ...props }) {
+        }}
+      />
 
-                    const match = /language-(\w+)/.exec(className || "");
+      <label
+        htmlFor={uploading ? "" : "pdfUpload"}
+        className="upload-card"
+      >
 
-                    if (!inline && match) {
+        <div className="upload-icon">
 
-                      const code = String(children).replace(/\n$/, "");
+          📄
 
-                      return (
+        </div>
 
-                        <div className="code-block">
+        <div className="upload-text">
 
-                          <div className="code-header">
+          <h3>
 
-                            <span>{match[1].toUpperCase()}</span>
+            {uploadedPDF
 
-                            <CopyButton code={code} />
+              ? "PDF Loaded"
 
-                          </div>
+              : "Upload PDF"}
 
-                          <SyntaxHighlighter
-                            language={match[1]}
-                            style={oneDark}
-                            PreTag="div"
-                            {...props}
-                          >
-                            {code}
-                          </SyntaxHighlighter>
+          </h3>
 
-                        </div>
+          <p>
 
-                      );
+            {uploading
 
-                    }
+              ? "Uploading..."
 
-                    return (
-                      <code className={className} {...props}>
-                        {children}
-                      </code>
-                    );
+              : uploadedPDF
 
-                  },
-                }}
-              >
-                {msg.text}
-              </ReactMarkdown>
+              ? uploadedPDF
+
+              : "Click here to upload your PDF"}
+
+          </p>
+
+        </div>
+
+      </label>
+
+    </div>
+
+    {/* ---------------------- */}
+    {/* Chat */}
+    {/* ---------------------- */}
+
+    <div className="chat-box">
+
+      {
+
+        messages.length === 0
+
+          ? (
+
+            <div className="message bot">
+
+              Hello! I'm Nova. 👋
 
             </div>
 
-          ))
+          )
 
-        )}
+          : (
 
-        <div ref={messagesEndRef}></div>
+            messages.map((msg, index) => (
 
-      </div>
+              <div
 
-      <div className="input-area">
+                key={index}
 
-        <input
-          type="text"
-          placeholder="Ask Nova anything..."
-          value={message}
-          disabled={loading}
-          onChange={(e) => setMessage(e.target.value)}
-          onKeyDown={(e) => {
+                className={`message ${msg.sender}`}
 
-            if (e.key === "Enter") {
-              sendMessage();
-            }
+              >
 
-          }}
-        />
+                <ReactMarkdown
 
-        <button
-          onClick={sendMessage}
-          disabled={loading}
-        >
-          {loading ? "Generating..." : "Send"}
-        </button>
+                  remarkPlugins={[remarkGfm]}
 
-      </div>
+                  components={{
+
+                    code({
+
+                      inline,
+
+                      className,
+
+                      children,
+
+                      ...props
+
+                    }) {
+
+                      const match = /language-(\w+)/.exec(className || "");
+
+                      if (!inline && match) {
+
+                        const code = String(children).replace(/\n$/, "");
+
+                        return (
+
+                          <div className="code-block">
+
+                            <div className="code-header">
+
+                              <span>
+
+                                {match[1].toUpperCase()}
+
+                              </span>
+
+                              <CopyButton code={code} />
+
+                            </div>
+
+                            <SyntaxHighlighter
+
+                              language={match[1]}
+
+                              style={oneDark}
+
+                              PreTag="div"
+
+                              {...props}
+
+                            >
+
+                              {code}
+
+                            </SyntaxHighlighter>
+
+                          </div>
+
+                        );
+
+                      }
+
+                      return (
+
+                        <code
+
+                          className={className}
+
+                          {...props}
+
+                        >
+
+                          {children}
+
+                        </code>
+
+                      );
+
+                    },
+
+                  }}
+
+                >
+
+                  {msg.text}
+
+                </ReactMarkdown>
+
+              </div>
+
+            ))
+
+          )
+
+      }
+
+      <div ref={messagesEndRef}></div>
 
     </div>
-  );
+        {/* ---------------------- */}
+    {/* Input Area */}
+    {/* ---------------------- */}
+
+    <div className="input-area">
+
+      <input
+        type="text"
+        placeholder={
+          uploadedPDF
+            ? `Ask anything about ${uploadedPDF}...`
+            : "Ask Nova anything..."
+        }
+        value={message}
+        disabled={loading}
+        onChange={(e) => setMessage(e.target.value)}
+        onKeyDown={(e) => {
+
+          if (e.key === "Enter") {
+
+            sendMessage();
+
+          }
+
+        }}
+      />
+
+      <button
+
+        onClick={sendMessage}
+
+        disabled={loading}
+
+      >
+
+        {loading
+
+          ? "Generating..."
+
+          : "Send"}
+
+      </button>
+
+    </div>
+
+  </div>
+
+);
 
 }
 
