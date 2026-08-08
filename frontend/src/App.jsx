@@ -1,471 +1,246 @@
 import "./App.css";
-import { useState, useEffect, useRef } from "react";
+import { useState } from "react";
 
-import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm";
-
-import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
-import { oneDark } from "react-syntax-highlighter/dist/esm/styles/prism";
-
-import { FiCopy, FiCheck } from "react-icons/fi";
+import Sidebar from "./components/Sidebar";
+import Header from "./components/Header";
+import ChatArea from "./components/ChatArea";
+import InputBar from "./components/InputBar";
 
 import {
   streamChat,
   uploadPDF,
+  removePDF,
 } from "./services/api";
 
-function CopyButton({ code }) {
-
-  const [copied, setCopied] = useState(false);
-
-  const copyCode = async () => {
-
-    await navigator.clipboard.writeText(code);
-
-    setCopied(true);
-
-    setTimeout(() => {
-      setCopied(false);
-    }, 2000);
-
-  };
-
-  return (
-
-    <button
-      className="copy-btn"
-      onClick={copyCode}
-      title="Copy code"
-    >
-      {copied ? <FiCheck /> : <FiCopy />}
-    </button>
-
-  );
-
-}
-
 function App() {
+  // ------------------------
+  // State
+  // ------------------------
 
   const [message, setMessage] = useState("");
+
   const [messages, setMessages] = useState([]);
+
   const [loading, setLoading] = useState(false);
 
   const [uploading, setUploading] = useState(false);
+
   const [uploadedPDF, setUploadedPDF] = useState("");
 
-  const messagesEndRef = useRef(null);
+  const [dragActive, setDragActive] = useState(false);
+
 
   // ------------------------
   // Upload PDF
   // ------------------------
 
   const handlePDFUpload = async (file) => {
-
     if (!file) return;
 
+    // Check file type
     if (file.type !== "application/pdf") {
-
       alert("Please upload a PDF.");
-
       return;
-
     }
 
     try {
-
       setUploading(true);
 
       const result = await uploadPDF(file);
 
       if (result.success) {
-
         setUploadedPDF(result.filename);
 
-        setMessages(prev => [
-
+        setMessages((prev) => [
           ...prev,
-
           {
             sender: "bot",
             text:
-              `📄 **${result.filename}** uploaded successfully.\n\nYou can now ask questions about this document.`,
-          }
-
+              `📄 **${result.filename}** uploaded successfully.\n\n` +
+              `You can now ask questions about this document.`,
+          },
         ]);
-
+      } else {
+        alert(result.message || "PDF upload failed.");
       }
-
-      else {
-
-        alert(result.message);
-
-      }
-
-    }
-
-    catch (err) {
-
-      console.error(err);
+    } catch (err) {
+      console.error("PDF Upload Error:", err);
 
       alert("Upload failed.");
-
-    }
-
-    finally {
-
+    } finally {
       setUploading(false);
-
+      setDragActive(false);
     }
-
   };
+
+  const handleNewChat = async () => {
+  try {
+    // Remove currently loaded PDF from backend
+    if (uploadedPDF) {
+      await removePDF();
+    }
+  } catch (error) {
+    console.error("Error removing PDF:", error);
+  }
+
+  // Clear current chat
+  setMessages([]);
+
+  // Clear input
+  setMessage("");
+
+  // Clear uploaded PDF
+  setUploadedPDF("");
+
+  // Reset upload state
+  setUploading(false);
+};
+
+
+  // ------------------------
+  // Remove PDF
+  // ------------------------
+
+  const handleRemovePDF = async () => {
+    try {
+      const result = await removePDF();
+
+      if (result.success) {
+        setUploadedPDF("");
+
+        setMessages((prev) => [
+          ...prev,
+          {
+            sender: "bot",
+            text: "📄 PDF removed successfully.",
+          },
+        ]);
+      } else {
+        alert(result.message || "Unable to remove PDF.");
+      }
+    } catch (err) {
+      console.error("Remove PDF Error:", err);
+
+      alert("Unable to remove PDF.");
+    }
+  };
+
 
   // ------------------------
   // Send Message
   // ------------------------
 
   const sendMessage = async () => {
-
     if (loading) return;
 
     if (!message.trim()) return;
 
-    const currentMessage = message;
+    const currentMessage = message.trim();
 
+    // Start loading
     setLoading(true);
 
+    // Clear input
     setMessage("");
 
-    setMessages(prev => [
-
+    // Add user message
+    // Add empty bot message for streaming
+    setMessages((prev) => [
       ...prev,
-
       {
         sender: "user",
         text: currentMessage,
       },
-
       {
         sender: "bot",
         text: "",
-      }
-
+      },
     ]);
 
     try {
-
       await streamChat(currentMessage, (chunk) => {
-
-        setMessages(prev => {
-
+        setMessages((prev) => {
           const updated = [...prev];
 
+          const lastMessage = updated[updated.length - 1];
+
           updated[updated.length - 1] = {
-
-            ...updated[updated.length - 1],
-
-            text:
-
-              updated[updated.length - 1].text + chunk,
-
+            ...lastMessage,
+            text: lastMessage.text + chunk,
           };
 
           return updated;
-
         });
-
       });
+    } catch (err) {
+      console.error("Chat Error:", err);
 
-    }
-
-    catch (error) {
-
-      console.error(error);
-
-      setMessages(prev => {
-
+      setMessages((prev) => {
         const updated = [...prev];
 
         updated[updated.length - 1] = {
-
           sender: "bot",
-
-          text: "❌ Something went wrong."
-
+          text: "❌ Something went wrong. Please try again.",
         };
 
         return updated;
-
       });
-
-    }
-
-    finally {
-
+    } finally {
       setLoading(false);
-
     }
-
   };
 
-  useEffect(() => {
 
-    messagesEndRef.current?.scrollIntoView({
-
-      behavior: "smooth",
-
-    });
-
-  }, [messages]);
+  // ------------------------
+  // Render
+  // ------------------------
 
   return (
+    <div className="app">
 
-  <div className="app">
+      {/* ======================== */}
+      {/* Sidebar */}
+      {/* ======================== */}
 
-    <h1>Nova AI</h1>
+      <Sidebar onNewChat={handleNewChat} />
 
-    {/* ---------------------- */}
-    {/* PDF Upload */}
-    {/* ---------------------- */}
 
-    <div className="upload-box">
+      {/* ======================== */}
+      {/* Main Content */}
+      {/* ======================== */}
 
-      <input
-        type="file"
-        accept=".pdf"
-        id="pdfUpload"
-        hidden
-        onChange={(e) => {
+      <div className="main-content">
 
-          handlePDFUpload(e.target.files[0]);
+        {/* Header */}
+        <Header
+          uploadedPDF={uploadedPDF}
+        />
 
-          e.target.value = "";
 
-        }}
-      />
+        {/* Chat */}
+        <ChatArea
+          messages={messages}
+        />
 
-      <label
-        htmlFor={uploading ? "" : "pdfUpload"}
-        className="upload-card"
-      >
 
-        <div className="upload-icon">
+        {/* Input / PDF Upload */}
+        <InputBar
+          message={message}
+          setMessage={setMessage}
+          sendMessage={sendMessage}
+          loading={loading}
+          uploading={uploading}
+          uploadedPDF={uploadedPDF}
+          handlePDFUpload={handlePDFUpload}
+          handleRemovePDF={handleRemovePDF}
+          dragActive={dragActive}
+          setDragActive={setDragActive}
+        />
 
-          📄
-
-        </div>
-
-        <div className="upload-text">
-
-          <h3>
-
-            {uploadedPDF
-
-              ? "PDF Loaded"
-
-              : "Upload PDF"}
-
-          </h3>
-
-          <p>
-
-            {uploading
-
-              ? "Uploading..."
-
-              : uploadedPDF
-
-              ? uploadedPDF
-
-              : "Click here to upload your PDF"}
-
-          </p>
-
-        </div>
-
-      </label>
+      </div>
 
     </div>
-
-    {/* ---------------------- */}
-    {/* Chat */}
-    {/* ---------------------- */}
-
-    <div className="chat-box">
-
-      {
-
-        messages.length === 0
-
-          ? (
-
-            <div className="message bot">
-
-              Hello! I'm Nova. 👋
-
-            </div>
-
-          )
-
-          : (
-
-            messages.map((msg, index) => (
-
-              <div
-
-                key={index}
-
-                className={`message ${msg.sender}`}
-
-              >
-
-                <ReactMarkdown
-
-                  remarkPlugins={[remarkGfm]}
-
-                  components={{
-
-                    code({
-
-                      inline,
-
-                      className,
-
-                      children,
-
-                      ...props
-
-                    }) {
-
-                      const match = /language-(\w+)/.exec(className || "");
-
-                      if (!inline && match) {
-
-                        const code = String(children).replace(/\n$/, "");
-
-                        return (
-
-                          <div className="code-block">
-
-                            <div className="code-header">
-
-                              <span>
-
-                                {match[1].toUpperCase()}
-
-                              </span>
-
-                              <CopyButton code={code} />
-
-                            </div>
-
-                            <SyntaxHighlighter
-
-                              language={match[1]}
-
-                              style={oneDark}
-
-                              PreTag="div"
-
-                              {...props}
-
-                            >
-
-                              {code}
-
-                            </SyntaxHighlighter>
-
-                          </div>
-
-                        );
-
-                      }
-
-                      return (
-
-                        <code
-
-                          className={className}
-
-                          {...props}
-
-                        >
-
-                          {children}
-
-                        </code>
-
-                      );
-
-                    },
-
-                  }}
-
-                >
-
-                  {msg.text}
-
-                </ReactMarkdown>
-
-              </div>
-
-            ))
-
-          )
-
-      }
-
-      <div ref={messagesEndRef}></div>
-
-    </div>
-        {/* ---------------------- */}
-    {/* Input Area */}
-    {/* ---------------------- */}
-
-    <div className="input-area">
-
-      <input
-        type="text"
-        placeholder={
-          uploadedPDF
-            ? `Ask anything about ${uploadedPDF}...`
-            : "Ask Nova anything..."
-        }
-        value={message}
-        disabled={loading}
-        onChange={(e) => setMessage(e.target.value)}
-        onKeyDown={(e) => {
-
-          if (e.key === "Enter") {
-
-            sendMessage();
-
-          }
-
-        }}
-      />
-
-      <button
-
-        onClick={sendMessage}
-
-        disabled={loading}
-
-      >
-
-        {loading
-
-          ? "Generating..."
-
-          : "Send"}
-
-      </button>
-
-    </div>
-
-  </div>
-
-);
-
+  );
 }
 
 export default App;
