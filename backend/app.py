@@ -3,7 +3,10 @@ from fastapi import UploadFile, File
 import shutil
 import os
 
-from nova import load_pdf
+from nova import (
+    load_pdf,
+    remove_pdf,
+)
 from fastapi.responses import StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -62,6 +65,15 @@ async def upload_pdf(file: UploadFile = File(...)):
             "message": str(e)
         }
 
+@app.delete("/remove-pdf")
+def delete_pdf():
+
+    message = remove_pdf()
+
+    return {
+        "success": True,
+        "message": message,
+    }
 
 @app.post("/chat/stream")
 def chat_stream(request: ChatRequest):
